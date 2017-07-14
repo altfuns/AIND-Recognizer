@@ -10,8 +10,9 @@ from asl_utils import show_errors
 asl = AslDb()
 
 def run_experiment(asl):
-    run_features = ['custom']
+    run_features = ['custom', 'custom-delta-norm-polar']
     selectors = {"Constant" : SelectorConstant, "CV": SelectorCV, "BIC" : SelectorBIC, "DIC" : SelectorDIC}
+    #selectors = {"DIC" : SelectorDIC}
     features = load_features(asl)
     print("Feature, Selector, Training Time, Recognize Time, WER")
     for feature in run_features:
@@ -61,6 +62,7 @@ def load_features(asl):
     features['polar'] = polar_feature(asl)
     features['delta'] = delta_feature(asl)
     features['custom'] = custom_feature(asl)
+    features['custom-delta-norm-polar'] = custom_dnp_feature(asl)
     return features
 
 def load_means(asl):
@@ -115,17 +117,53 @@ def delta_feature(asl):
     features_delta = ['delta-rx', 'delta-ry', 'delta-lx', 'delta-ly']
     return features_delta
 
+def custom_dnp_feature(asl):
+    df_means = asl.df.groupby('speaker').mean()
+    df_std = asl.df.groupby('speaker').std()
+    asl.df['polar-rr-mean']= asl.df['speaker'].map(df_means['polar-rr'])
+    asl.df['polar-rtheta-mean']= asl.df['speaker'].map(df_means['polar-rtheta'])
+    asl.df['polar-lr-mean']= asl.df['speaker'].map(df_means['polar-lr'])
+    asl.df['polar-ltheta-mean']= asl.df['speaker'].map(df_means['polar-ltheta'])
+
+    asl.df['polar-rr-std']= asl.df['speaker'].map(df_std['polar-rr'])
+    asl.df['polar-rtheta-std']= asl.df['speaker'].map(df_std['polar-rtheta'])
+    asl.df['polar-lr-std']= asl.df['speaker'].map(df_std['polar-lr'])
+    asl.df['polar-ltheta-std']= asl.df['speaker'].map(df_std['polar-ltheta'])
+
+    asl.df['np-rr'] = (asl.df['polar-rr'] - asl.df['polar-rr-mean']) / asl.df['polar-rr-std']
+    asl.df['np-rtheta'] = (asl.df['polar-rtheta'] - asl.df['polar-rtheta-mean']) / asl.df['polar-rtheta-std']
+    asl.df['np-lr'] = (asl.df['polar-lr'] - asl.df['polar-lr-mean']) / asl.df['polar-lr-std']
+    asl.df['np-ltheta'] = (asl.df['polar-ltheta'] - asl.df['polar-ltheta-mean']) / asl.df['polar-ltheta-std']
+
+    asl.df['dnp-rr'] = asl.df['np-rr'].diff().fillna(0)
+    asl.df['dnp-rtheta'] = asl.df['np-rtheta'].diff().fillna(0)
+    asl.df['dnp-lr'] = asl.df['np-lr'].diff().fillna(0)
+    asl.df['dnp-ltheta'] = asl.df['np-ltheta'].diff().fillna(0)
+
+    features_custom = ['dnp-rr', 'dnp-rtheta', 'dnp-lr', 'dnp-ltheta']
+    return features_custom
+
 def custom_feature(asl):
     # Custom Feature
     df_means = asl.df.groupby('speaker').mean()
     df_std = asl.df.groupby('speaker').std()
-    asl.df['polar-rr-mean']= asl.df['speaker'].map(df_means['polar-rr'])
-    asl.df['polar-rr-std']= asl.df['speaker'].map(df_std['polar-rr'])
-    asl.df['norm-polar-rr'] = (asl.df['polar-rr'] - asl.df['polar-rr-mean']) / asl.df['polar-rr-std']
-    asl.df['polar-lr-mean']= asl.df['speaker'].map(df_means['polar-lr'])
-    asl.df['polar-lr-std']= asl.df['speaker'].map(df_std['polar-lr'])
-    asl.df['norm-polar-lr'] = (asl.df['polar-lr'] - asl.df['polar-lr-mean']) / asl.df['polar-lr-std']
-    features_custom = ['norm-polar-rr', 'norm-polar-lr']
+
+    asl.df['grnd-rx-mean']= asl.df['speaker'].map(df_means['grnd-rx'])
+    asl.df['grnd-ry-mean']= asl.df['speaker'].map(df_means['grnd-ry'])
+    asl.df['grnd-lx-mean']= asl.df['speaker'].map(df_means['grnd-lx'])
+    asl.df['grnd-ly-mean']= asl.df['speaker'].map(df_means['grnd-ly'])
+
+    asl.df['grnd-rx-std']= asl.df['speaker'].map(df_std['grnd-rx'])
+    asl.df['grnd-ry-std']= asl.df['speaker'].map(df_std['grnd-ry'])
+    asl.df['grnd-lx-std']= asl.df['speaker'].map(df_std['grnd-lx'])
+    asl.df['grnd-ly-std']= asl.df['speaker'].map(df_std['grnd-ly'])
+
+    asl.df['ng-rx'] = (asl.df['grnd-rx'] - asl.df['grnd-rx-mean']) / asl.df['grnd-rx-std']
+    asl.df['ng-ry'] = (asl.df['grnd-ry'] - asl.df['grnd-ry-mean']) / asl.df['grnd-ry-std']
+    asl.df['ng-lx'] = (asl.df['grnd-lx'] - asl.df['grnd-lx-mean']) / asl.df['grnd-lx-std']
+    asl.df['ng-ly'] = (asl.df['grnd-ly'] - asl.df['grnd-ly-mean']) / asl.df['grnd-ly-std']
+    features_custom = ['ng-rx', 'ng-ry', 'ng-lx', 'ng-ly']
+
     return features_custom
 
 run_experiment(asl)
